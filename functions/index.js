@@ -143,6 +143,47 @@ app.post('/signup', (req,res) => {
         })
 })
 
+
+//sign-in function
+
+app.post('/signin', (req,res) => {
+    const userCreditials = {
+        email : req.body.email,
+        password: req.body.password
+    };
+
+    let errors = {};
+
+    if(isEmpty(userCreditials.email)) {
+        errors.email = "must not be emapty";
+    }else if(!isValidEmail(userCreditials.email)) {
+        errors.email = "must be valid"
+    }
+
+    if (isEmpty(userCreditials.password)) {
+        errors.password = "must not be empty";
+    }
+
+    if(Object.keys(errors).length > 0) {
+        return res.status(400).json({errors});
+    }
+
+    firebase.auth().signInWithEmailAndPassword(userCreditials.email,userCreditials.password)
+        .then(data => {
+            return data.user.getIdToken();
+        })
+        .then(token => {
+            return res.status(200).json({token});
+        })
+        .catch((error) => {
+            if (error.code === "auth/wrong-password") {
+                return res.status(400).json({errorMessage: "email or password not matching, please try again"})
+            }
+
+            return res.status(500).json({ errorMessage: error.code });
+        })
+})
+
 //https://baseurl.com/api/<endpoint>
 
 exports.api = functions.https.onRequest(app);
