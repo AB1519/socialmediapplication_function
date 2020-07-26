@@ -55,56 +55,92 @@ app.post('/notifications',(req,res) => {
     })
 })
 
+const isEmpty = (string) => {
+    if(string.trim() === '') {
+        return true;
+    }
+    return false;
+}
+const isValidEmail = (email) => {
+	const emailRegEx = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    if(email.match(emailRegEx)) {
+        return true;
+    }
+    return false;
+};
 
 //sign-up route
 app.post('/signup', (req,res) => {
     const newUser = {
-			email: req.body.email,
-			password: req.body.password,
-			confirmPassword: req.body.confirmPassword,
-			userName: req.body.userName
-        };
+        email: req.body.email,
+        password: req.body.password,
+        confirmPassword: req.body.confirmPassword,
+        userName: req.body.userName
+    };
         //TODO: validate data
+    let errors = {};
+    
+    if(isEmpty(newUser.email)){
+        errors.email = "must not be empty"
+    } else if(!isValidEmail(newUser.email)){
+        errors.email = "must be valid"
+    }
 
-        let tokenId,userId;
+    if(isEmpty(newUser.password)) {
+        errors.password = "must not be empty"
+    }
 
-        db.doc(`/users/${newUser.userName}`).get()
-            .then(doc => {
-                if(doc.exists) {
-                    return res.status(400).json({message: `${newUser.userName} already exists`})
-                }else{
-                  return   firebase
-                            .auth()
-                            .createUserWithEmailAndPassword(
-                                newUser.email,
-                                newUser.password
-                            );
-                }
-            })
-            .then(data => {
-                userId = data.user.uid;
-                return data.user.getIdToken()
-            })
-            .then(token => {
-                tokenId = token;
-                const newUserCreditials = {
-                    userName: newUser.userName,
-                    userId: userId,
-                    emailId: newUser.email,
-                    createdAt: new Date().toISOString(),
-                };
-                return db.doc(`/users/${newUser.userName}`).set(newUserCreditials);
-            })
-            .then(() => {
-                return res.status(200).json({token: tokenId})
-            })
-            .catch((err) => {
-                if(err.code === "auth/email-already-in-use") {
-                    return res.status(400).json({ errorMessage: "Email already in use"})
-                }else{
-                    return res.status(500).json({errorMessage: err.code})
-                }       
-            })
+    if(newUser.password !== newUser.confirmPassword) {
+        errors.confirmPassword = "passwords must match"
+    }
+
+    if (isEmpty(newUser.userName)) {
+        errors.userName = "must not be empty";
+    }
+
+    if(Object.keys(errors).length > 0) {
+        return res.status(400).json({errors});
+    }
+    
+    let tokenId,userId;
+
+    db.doc(`/users/${newUser.userName}`).get()
+        .then(doc => {
+            if(doc.exists) {
+                return res.status(400).json({message: `${newUser.userName} already exists`})
+            }else{
+                return   firebase
+                        .auth()
+                        .createUserWithEmailAndPassword(
+                            newUser.email,
+                            newUser.password
+                        );
+            }
+        })
+        .then(data => {
+            userId = data.user.uid;
+            return data.user.getIdToken()
+        })
+        .then(token => {
+            tokenId = token;
+            const newUserCreditials = {
+                userName: newUser.userName,
+                userId: userId,
+                emailId: newUser.email,
+                createdAt: new Date().toISOString(),
+            };
+            return db.doc(`/users/${newUser.userName}`).set(newUserCreditials);
+        })
+        .then(() => {
+            return res.status(200).json({token: tokenId})
+        })
+        .catch((err) => {
+            if(err.code === "auth/email-already-in-use") {
+                return res.status(400).json({ errorMessage: "Email already in use"})
+            }else{
+                return res.status(500).json({errorMessage: err.code})
+            }       
+        })
 })
 
 //https://baseurl.com/api/<endpoint>
