@@ -3,24 +3,33 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
-exports.getNotifications = functions.https.onRequest((req,res) => {
-   admin.firestore().collection('notifications').get().then((data) => {
-       let notification_list = [];
-       data.forEach(doc => {
-           notification_list.push(doc.data());
-       })
-       return res.json(notification_list); 
-   }).catch((err) => console.log(err));    
+const express = require('express');
+const app = express();
+
+app.get('/notifications',(req,res) => {
+    admin
+			.firestore()
+            .collection("notifications")
+            .orderBy('createdAt', 'desc')
+			.get()
+			.then((data) => {
+				let notification_list = [];
+				data.forEach((doc) => {
+					notification_list.push({
+                        notificationId: doc.id,
+                        ...doc.data()
+                    });
+				});
+				return res.json(notification_list);
+			})
+			.catch((err) => console.log(err));
 })
 
-exports.addNotifications = functions.https.onRequest((req,res) => {
-    if(req.method !== "POST") {
-        return res.status(400).json({error: 'Method is invalid' })
-    }
+app.post('/notifications',(req,res) => {
     const newNotification = {
         userName: req.body.userName,
         message: req.body.message,
-        createdAt: admin.firestore.Timestamp.fromDate(new Date())
+        createdAt: new Date().toISOString()
     }
     admin.firestore().collection('notifications').add(newNotification).then(doc => {
         console.log(`New Notification with ID ${doc.id} is created succesfully`)
@@ -32,3 +41,7 @@ exports.addNotifications = functions.https.onRequest((req,res) => {
         console.log(err);
     })
 })
+
+//https://baseurl.com/api/<endpoint>
+
+exports.api = functions.https.onRequest(app);
