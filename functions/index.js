@@ -20,6 +20,38 @@ firebase.initializeApp(firebaseConfig);
 
 const db = admin.firestore();
 
+const FBAuth = (req,res,next) => {
+    let idtoken;
+
+    if(req.headers.authorization && req.headers.authorization.startsWith('Bearer ')){
+        idtoken = req.headers.authorization.split("Bearer ")[1];
+    } else {
+        return res.status(401).json({errorMessage: 'Unauthorized'});
+    }
+
+    //verifying if the token is issued by our app
+
+    admin.auth().verifyIdToken(idtoken)
+    .then(decodedToken => {
+        req.user = decodedToken;
+        console.log(decodedToken);
+        return db.collection('users')
+        .where('userId', '==', req.user.uid)
+        .limit(1)
+        .get();
+    })
+    .then(data => {
+        req.user.userName = data.docs[0].data().userName;
+        return next();
+    })
+    .catch((error) => {
+        // console.log('errow while verifying token',error)
+        if (error.code === "auth/argument-error") {
+            return res.status(403).json({ errorMessage: "JWT token is invalid" });
+        }  
+    })
+}
+
 app.get('/notifications',(req,res) => {
     db
     .collection("notifications")
@@ -38,9 +70,9 @@ app.get('/notifications',(req,res) => {
     .catch((err) => console.log(err));
 })
 
-app.post('/notifications',(req,res) => {
+app.post('/notifications', FBAuth, (req,res) => {
     const newNotification = {
-        userName: req.body.userName,
+        userName: req.user.userName,
         message: req.body.message,
         createdAt: new Date().toISOString()
     }
@@ -177,9 +209,8 @@ app.post('/signin', (req,res) => {
         })
         .catch((error) => {
             if (error.code === "auth/wrong-password") {
-                return res.status(400).json({errorMessage: "email or password not matching, please try again"})
+                return res.status(400).json({errorMessage: "email or password not matching, please try again"});
             }
-
             return res.status(500).json({ errorMessage: error.code });
         })
 })
